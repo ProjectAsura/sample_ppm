@@ -34,18 +34,18 @@ std::list<HitRecord*>               hitpoints;
 std::vector<std::list<HitRecord*> > hash_grid;
 double                              hash_s;
 BoundingBox                         hpbbox;
-RenderSphere sph[] = 
+SphereObject sph[] = 
 {
     // Scene: radius, position, color, material
-    RenderSphere(1e5,  Vector3( 1e5 + 1,   40.8,       81.6 ), Vector3( 0.99, 0.25, 0.05 ),  MaterialType::Matte ),   //Right
-    RenderSphere(1e5,  Vector3(-1e5 + 99,  40.8,       81.6 ), Vector3( 0.05, 0.5,  0.99 ),  MaterialType::Matte ),   //Left
-    RenderSphere(1e5,  Vector3( 50,        40.8,        1e5 ), Vector3( 0.75, 0.75, 0.75 ),  MaterialType::Matte ),   //Back
-    RenderSphere(1e5,  Vector3( 50,        40.8, -1e5 + 170 ), Vector3( 0.0,  0.0,  0.0  ),  MaterialType::Matte ),   //Front
-    RenderSphere(1e5,  Vector3( 50,         1e5,       81.6 ), Vector3( 0.75, 0.75, 0.75 ),  MaterialType::Matte ),   //Bottomm
-    RenderSphere(1e5,  Vector3( 50, -1e5 + 81.6,       81.6 ), Vector3( 0.75, 0.75, 0.75 ),  MaterialType::Matte ),   //Top
-    RenderSphere(16.5, Vector3( 27,        16.5,         47 ), Vector3( 0.25, 0.85, 0.25 ),  MaterialType::Mirror),  //Mirror
-    RenderSphere(16.5, Vector3( 73,        16.5,         88 ), Vector3( 0.99, 0.99, 0.99 ),  MaterialType::Glass ),   //Glass
-    RenderSphere(8.5,  Vector3( 50,         8.5,         60 ), Vector3( 0.75, 0.75, 0.75 ),  MaterialType::Matte ),   //Middle
+    SphereObject(1e5,  Vector3( 1e5 + 1,   40.8,       81.6 ), Vector3( 0.99, 0.01, 0.01 ),  MaterialType::Matte ),   //Right
+    SphereObject(1e5,  Vector3(-1e5 + 99,  40.8,       81.6 ), Vector3( 0.01, 0.01, 0.99 ),  MaterialType::Matte ),   //Left
+    SphereObject(1e5,  Vector3( 50,        40.8,        1e5 ), Vector3( 0.75, 0.75, 0.75 ),  MaterialType::Matte ),   //Back
+    SphereObject(1e5,  Vector3( 50,        40.8, -1e5 + 170 ), Vector3( 0.0,  0.0,  0.0  ),  MaterialType::Matte ),   //Front
+    SphereObject(1e5,  Vector3( 50,         1e5,       81.6 ), Vector3( 0.75, 0.75, 0.75 ),  MaterialType::Matte ),   //Bottomm
+    SphereObject(1e5,  Vector3( 50, -1e5 + 81.6,       81.6 ), Vector3( 0.75, 0.75, 0.75 ),  MaterialType::Matte ),   //Top
+    SphereObject(16.5, Vector3( 27,        16.5,         47 ), Vector3( 0.25, 0.85, 0.25 ),  MaterialType::Mirror),   //Mirror
+    SphereObject(16.5, Vector3( 73,        16.5,         88 ), Vector3( 0.99, 0.99, 0.99 ),  MaterialType::Glass ),   //Glass
+    SphereObject(8.5,  Vector3( 50,         8.5,         60 ), Vector3( 0.75, 0.75, 0.75 ),  MaterialType::Matte ),   //Middle
 };
 
 } // namespace /* anonymous */
@@ -76,11 +76,6 @@ void build_hash_grid
     const int h
 )
 {
-    // find the bounding box of all the measurement points
-    hpbbox.reset();
-    for( auto itr = hitpoints.begin(); itr != hitpoints.end(); ++itr )
-    { hpbbox.merge( (*itr)->pos ); }
-
     // heuristic for initial radius
     auto size = hpbbox.maxi - hpbbox.mini;
     auto irad = ((size.x + size.y + size.z) / 3.0) / ((w + h) / 2.0) * 2.0;
@@ -177,7 +172,7 @@ void trace( const Ray &r, int dpt, bool m, const Vector3 &fl, const Vector3 &adj
         return;
 
     auto d3 = dpt * 3;
-    const RenderSphere &obj = sph[ id ];
+    const auto &obj = sph[ id ];
     auto x  = r.pos + r.dir*t, n = normalize( x - obj.pos );
     auto f  = obj.color;
     auto nl = ( dot(n, r.dir ) < 0 ) ? n : n*-1;
@@ -195,6 +190,9 @@ void trace( const Ray &r, int dpt, bool m, const Vector3 &fl, const Vector3 &adj
             hp->nrm = n;
             hp->idx = i;
             hitpoints.push_back( hp );
+
+            // find the bounding box of all the measurement points
+            hpbbox.merge( x );
         }
         else
         {
@@ -311,13 +309,18 @@ void trace_ray( int w, int h )
         }
     }
     fprintf( stdout, "\n" );
+    auto end = std::chrono::system_clock::now();
+    auto dif = end - start;
+    fprintf( stdout, "Ray Tracing Pass : %lld(msec)\n", std::chrono::duration_cast<std::chrono::milliseconds>(dif).count() );
+
+    start = std::chrono::system_clock::now();
 
     // build the hash table over the measurement points
     build_hash_grid( w, h );
 
-    auto end = std::chrono::system_clock::now();
-    auto dif = end - start;
-    fprintf( stdout, "Ray Tracing Pass : %ld(msec)\n", std::chrono::duration_cast<std::chrono::milliseconds>(dif).count() );
+    end = std::chrono::system_clock::now();
+    dif = end - start;
+    fprintf( stdout, "Build Hash Grid : %lld(msec)\n", std::chrono::duration_cast<std::chrono::milliseconds>(dif).count() );
 }
 
 //-------------------------------------------------------------------------------------------
@@ -348,7 +351,7 @@ void trace_photon( int s )
     fprintf( stdout, "\n" );
     auto end = std::chrono::system_clock::now();
     auto dif = end - start;
-    fprintf( stdout, "Photon Tracing Pass : %ld(sec)\n", std::chrono::duration_cast<std::chrono::seconds>(dif).count() );
+    fprintf( stdout, "Photon Tracing Pass : %lld(sec)\n", std::chrono::duration_cast<std::chrono::seconds>(dif).count() );
 }
 
 //-------------------------------------------------------------------------------------------
@@ -370,10 +373,12 @@ void density_estimation( Vector3* color, int num_photon )
 //-------------------------------------------------------------------------------------------
 int main(int argc, char **argv) 
 {
-    auto w = 1024;      // 画像の横幅.
-    auto h = 768;       // 画像の縦幅.
+    auto w = 1280;      // 画像の横幅.
+    auto h = 1080;      // 画像の縦幅.
     auto s = 10000;     // s * 1000 photon paths will be traced
     auto c = new Vector3[ w * h ];
+
+    hpbbox.reset();
 
     trace_ray( w, h );
     trace_photon( s );

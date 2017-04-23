@@ -25,17 +25,17 @@ enum MaterialType
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// RenderSphere structure
+// SphereObject structure
 ////////////////////////////////////////////////////////////////////////////////
-struct RenderSphere : public Sphere
+struct SphereObject : public Sphere
 {
     Vector3         color;
     MaterialType    type;
 
-    RenderSphere( double r, Vector3 pos, Vector3 col, MaterialType _type )
+    SphereObject( double r, Vector3 pos, Vector3 col, MaterialType mat )
     : Sphere( pos, r )
     , color ( col )
-    , type  ( _type )
+    , type  ( mat )
     { /* DO_NOTHING */ }
 };
 
