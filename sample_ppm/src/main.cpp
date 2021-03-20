@@ -1,7 +1,7 @@
 ﻿//-------------------------------------------------------------------------------------------
 // File : main.cpp
 // Desc : expanded smallppm (code is exactly the same as smallppm.cpp but with more comments)
-//        Original Code by T.Hachisuka (http://users-cs.au.dk/toshiya/)
+//        Original Code by T.Hachisuka (https://cs.uwaterloo.ca/~thachisu/smallppm_exp.cpp)
 //-------------------------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------------------------
@@ -18,6 +18,7 @@
 #include <sphere.h>
 #include <hitrecord.h>
 
+#define PHOTON_COUNT_MUTIPLIER  1000
 
 namespace /* anonymous */ {
 
@@ -108,11 +109,20 @@ void build_hash_grid
         auto min = ((hp->pos - irad) - hpbbox.mini) * hash_s;
         auto max = ((hp->pos + irad) - hpbbox.mini) * hash_s;
 
-        for (int iz = abs(int(min.z)); iz <= abs(int(max.z)); iz++)
+        auto minX = abs(int(min.x));
+        auto maxX = abs(int(max.x));
+
+        auto minY = abs(int(min.y));
+        auto maxY = abs(int(max.y));
+
+        auto minZ = abs(int(min.z));
+        auto maxZ = abs(int(max.z));
+
+        for (int iz = minZ; iz <= maxZ; iz++)
         {
-            for (int iy = abs(int(min.y)); iy <= abs(int(max.y)); iy++)
+            for (int iy = minY; iy <= maxY; iy++)
             {
-                for (int ix = abs(int(min.x)); ix <= abs(int(max.x)); ix++)
+                for (int ix = minX; ix <= maxX; ix++)
                 {
                     int hv = hash( ix, iy, iz );
                     hash_grid[ hv ].push_back( hp );
@@ -149,7 +159,6 @@ inline bool intersect( const Ray &r, double &t, int &id )
 void genp( Ray* pr, Vector3* f, int i )
 {
     // generate a photon ray from the point light source with QMC
-
     (*f) = Vector3( 2500, 2500, 2500 ) * ( D_PI * 4.0 ); // flux
     auto p  = 2.0 * D_PI * halton( 0, i );
     auto t  = 2.0 * acos( sqrt(1. - halton( 1, i ) ));
@@ -301,6 +310,7 @@ void trace_ray( int w, int h )
     for (int y = 0; y < h; y++)
     {
         fprintf( stdout, "\rHitPointPass %5.2f%%", 100.0 * y / (h - 1) );
+
         for (int x = 0; x < w; x++) 
         {
             auto idx = x + y * w;
@@ -309,6 +319,7 @@ void trace_ray( int w, int h )
         }
     }
     fprintf( stdout, "\n" );
+
     auto end = std::chrono::system_clock::now();
     auto dif = end - start;
     fprintf( stdout, "Ray Tracing Pass : %lld(msec)\n", std::chrono::duration_cast<std::chrono::milliseconds>(dif).count() );
@@ -338,10 +349,10 @@ void trace_photon( int s )
     {
         auto p = 100.0 * ( i + 1 ) / s;
         fprintf( stdout, "\rPhotonPass %5.2f%%", p );
-        int m = 1000 * i;
+        int m = PHOTON_COUNT_MUTIPLIER * i;
         Ray r;
         Vector3 f;
-        for ( int j = 0; j < 1000; j++ )
+        for ( int j = 0; j < PHOTON_COUNT_MUTIPLIER; j++ )
         {
             genp( &r, &f, m + j );
             trace( r, 0, false, f, vw, m + j );
@@ -349,6 +360,7 @@ void trace_photon( int s )
     }
 
     fprintf( stdout, "\n" );
+
     auto end = std::chrono::system_clock::now();
     auto dif = end - start;
     fprintf( stdout, "Photon Tracing Pass : %lld(sec)\n", std::chrono::duration_cast<std::chrono::seconds>(dif).count() );
@@ -364,7 +376,7 @@ void density_estimation( Vector3* color, int num_photon )
     {
         auto hp = (*itr);
         auto i = hp->idx;
-        color[i] = color[i] + hp->flux * ( 1.0 / ( D_PI * hp->r2 * num_photon * 1000.0 ));
+        color[i] = color[i] + hp->flux * ( 1.0 / ( D_PI * hp->r2 * num_photon * PHOTON_COUNT_MUTIPLIER ));
     }
 }
 
@@ -375,7 +387,7 @@ int main(int argc, char **argv)
 {
     auto w = 1280;      // 画像の横幅.
     auto h = 1080;      // 画像の縦幅.
-    auto s = 10000;     // s * 1000 photon paths will be traced
+    auto s = 10000;     // s * 1000 photon paths will be traced (s * PHOTON_COUNT_MULTIPLIER).
     auto c = new Vector3[ w * h ];
 
     hpbbox.reset();
@@ -384,7 +396,8 @@ int main(int argc, char **argv)
     trace_photon( s );
     density_estimation( c, s );
 
-    save_to_bmp( "image.bmp", w, h, &c[0].x, 2.2 );
+    const auto kGamma = 2.2;
+    save_to_bmp( "image.bmp", w, h, &c[0].x, kGamma );
 
     delete [] c;
     c = nullptr;
