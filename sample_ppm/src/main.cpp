@@ -25,7 +25,7 @@ namespace /* anonymous */ {
 //-------------------------------------------------------------------------------------------
 // Constant Values
 //-------------------------------------------------------------------------------------------
-static const double ALPHA = 0.7; // the alpha parameter of PPM
+static const double ALPHA = 2.0 / 3.0; // the alpha parameter of PPM
 
 
 //-------------------------------------------------------------------------------------------
@@ -38,13 +38,13 @@ BoundingBox                         hpbbox;
 SphereObject sph[] = 
 {
     // Scene: radius, position, color, material
-    SphereObject(1e5,  Vector3( 1e5 + 1,   40.8,       81.6 ), Vector3( 0.99, 0.01, 0.01 ),  MaterialType::Matte ),   //Right
-    SphereObject(1e5,  Vector3(-1e5 + 99,  40.8,       81.6 ), Vector3( 0.01, 0.01, 0.99 ),  MaterialType::Matte ),   //Left
+    SphereObject(1e5,  Vector3( 1e5 + 1,   40.8,       81.6 ), Vector3( 0.25, 0.75, 0.25 ),  MaterialType::Matte ),   //Right
+    SphereObject(1e5,  Vector3(-1e5 + 99,  40.8,       81.6 ), Vector3( 0.25, 0.25, 0.75 ),  MaterialType::Matte ),   //Left
     SphereObject(1e5,  Vector3( 50,        40.8,        1e5 ), Vector3( 0.75, 0.75, 0.75 ),  MaterialType::Matte ),   //Back
-    SphereObject(1e5,  Vector3( 50,        40.8, -1e5 + 170 ), Vector3( 0.0,  0.0,  0.0  ),  MaterialType::Matte ),   //Front
+    SphereObject(1e5,  Vector3( 50,        40.8, -1e5 + 170 ), Vector3( 0.01, 0.01, 0.01 ),  MaterialType::Matte ),   //Front
     SphereObject(1e5,  Vector3( 50,         1e5,       81.6 ), Vector3( 0.75, 0.75, 0.75 ),  MaterialType::Matte ),   //Bottomm
     SphereObject(1e5,  Vector3( 50, -1e5 + 81.6,       81.6 ), Vector3( 0.75, 0.75, 0.75 ),  MaterialType::Matte ),   //Top
-    SphereObject(16.5, Vector3( 27,        16.5,         47 ), Vector3( 0.25, 0.85, 0.25 ),  MaterialType::Mirror),   //Mirror
+    SphereObject(16.5, Vector3( 27,        16.5,         47 ), Vector3( 0.75, 0.25, 0.25 ),  MaterialType::Mirror),   //Mirror
     SphereObject(16.5, Vector3( 73,        16.5,         88 ), Vector3( 0.99, 0.99, 0.99 ),  MaterialType::Glass ),   //Glass
     SphereObject(8.5,  Vector3( 50,         8.5,         60 ), Vector3( 0.75, 0.75, 0.75 ),  MaterialType::Matte ),   //Middle
 };
@@ -216,7 +216,7 @@ void trace( const Ray &r, int dpt, bool m, const Vector3 &fl, const Vector3 &adj
             // rarely accumulated to the same measurement points at the same time (especially with QMC).
             // it is also significantly faster.
             {
-                auto list = hash_grid[ hash( ix, iy, iz ) ];
+                auto& list = hash_grid[ hash( ix, iy, iz ) ];
                 for( auto itr = list.begin(); itr != list.end(); itr++ )
                 {
                     auto hp = (*itr);
@@ -297,6 +297,7 @@ void trace( const Ray &r, int dpt, bool m, const Vector3 &fl, const Vector3 &adj
 //-------------------------------------------------------------------------------------------
 void trace_ray( int w, int h )
 {
+    // 開始時刻.
     auto start = std::chrono::system_clock::now();
 
     // trace eye rays and store measurement points
@@ -309,6 +310,7 @@ void trace_ray( int w, int h )
 
     for (int y = 0; y < h; y++)
     {
+        // 進捗率を表示.
         fprintf( stdout, "\rHitPointPass %5.2f%%", 100.0 * y / (h - 1) );
 
         for (int x = 0; x < w; x++) 
@@ -318,8 +320,11 @@ void trace_ray( int w, int h )
             trace( Ray(cam.pos + d * 140, normalize(d)), 0, true, Vector3(), Vector3(1, 1, 1), idx );
         }
     }
+
+    // 改行.
     fprintf( stdout, "\n" );
 
+    // 処理時間を表示.
     auto end = std::chrono::system_clock::now();
     auto dif = end - start;
     fprintf( stdout, "Ray Tracing Pass : %lld(msec)\n", std::chrono::duration_cast<std::chrono::milliseconds>(dif).count() );
@@ -329,9 +334,10 @@ void trace_ray( int w, int h )
     // build the hash table over the measurement points
     build_hash_grid( w, h );
 
+    // 処理時間を表示.
     end = std::chrono::system_clock::now();
     dif = end - start;
-    fprintf( stdout, "Build Hash Grid : %lld(msec)\n", std::chrono::duration_cast<std::chrono::milliseconds>(dif).count() );
+    fprintf( stdout, "Build Hash Grid  : %lld(msec)\n", std::chrono::duration_cast<std::chrono::milliseconds>(dif).count() );
 }
 
 //-------------------------------------------------------------------------------------------
@@ -339,16 +345,19 @@ void trace_ray( int w, int h )
 //-------------------------------------------------------------------------------------------
 void trace_photon( int s )
 {
+    // 開始時刻.
     auto start = std::chrono::system_clock::now();
 
-    // trace photon rays with multi-threading
     auto vw = Vector3(1, 1, 1);
 
+    // trace photon rays with multi-threading
     #pragma omp parallel for schedule(dynamic, 1)
     for (int i = 0; i < s; i++) 
     {
+        // 進捗率表示.
         auto p = 100.0 * ( i + 1 ) / s;
         fprintf( stdout, "\rPhotonPass %5.2f%%", p );
+
         int m = PHOTON_COUNT_MUTIPLIER * i;
         Ray r;
         Vector3 f;
@@ -359,8 +368,10 @@ void trace_photon( int s )
         }
     }
 
+    // 改行.
     fprintf( stdout, "\n" );
 
+    // 処理時間を表示.
     auto end = std::chrono::system_clock::now();
     auto dif = end - start;
     fprintf( stdout, "Photon Tracing Pass : %lld(sec)\n", std::chrono::duration_cast<std::chrono::seconds>(dif).count() );
@@ -387,15 +398,21 @@ int main(int argc, char **argv)
 {
     auto w = 1280;      // 画像の横幅.
     auto h = 1080;      // 画像の縦幅.
-    auto s = 10000;     // s * 1000 photon paths will be traced (s * PHOTON_COUNT_MULTIPLIER).
+    auto s = 10000;     // s * 1000 個のフォトンがトレーシングされることになる (s * PHOTON_COUNT_MULTIPLIER).
     auto c = new Vector3[ w * h ];
 
     hpbbox.reset();
 
+    // カメラトレーシング.
     trace_ray( w, h );
+
+    // フォトントレーシング.
     trace_photon( s );
+
+    // 密度推定・放射輝度推定.
     density_estimation( c, s );
 
+    // 画像に出力.
     const auto kGamma = 2.2;
     save_to_bmp( "image.bmp", w, h, &c[0].x, kGamma );
 
